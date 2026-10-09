@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\TipoCambio.Core\TipoCambio.Core.csproj" />
+    <ProjectReference Include="..\..\src\TipoCambio.Datos\TipoCambio.Datos.csproj" />
   </ItemGroup>
 
 </Project>
