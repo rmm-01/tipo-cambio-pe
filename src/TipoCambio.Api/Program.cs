@@ -1,4 +1,7 @@
+using System.ComponentModel;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 using TipoCambio.Core;
 using TipoCambio.Core.Bcrp;
 using TipoCambio.Core.Sunat;
@@ -45,39 +48,57 @@ using (var scope = app.Services.CreateScope())
     await scope.ServiceProvider.GetRequiredService<TipoCambioDbContext>().Database.MigrateAsync();
 }
 
+// La documentación interactiva solo se expone en desarrollo, no en producción.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference(opciones => opciones.WithTitle("API de tipo de cambio (SUNAT/BCRP)"));
+    app.MapGet("/", () => Results.Redirect("/scalar")).ExcludeFromDescription();
 }
 
 app.UseHttpsRedirection();
 
-app.MapGet("/tipo-cambio/hoy", async (TipoCambioServicio servicio, ILogger<Program> logger, CancellationToken ct) =>
+app.MapGet("/tipo-cambio/hoy", async Task<Results<Ok<TipoCambioDia>, ProblemHttpResult>> (
+    TipoCambioServicio servicio, ILogger<Program> logger, CancellationToken ct) =>
 {
     try
     {
-        return Results.Ok(await servicio.ObtenerHoyAsync(ct));
+        return TypedResults.Ok(await servicio.ObtenerHoyAsync(ct));
     }
     catch (ProveedorNoDisponibleException ex)
     {
         logger.LogError(ex, "No se pudo obtener el tipo de cambio de ninguna fuente.");
         // 503 y no 500: el fallo es de la fuente externa, no de esta API.
-        return Results.Problem(
+        return TypedResults.Problem(
             title: "Fuente de tipo de cambio no disponible",
             detail: ex.Message,
             statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 })
-.WithName("ObtenerTipoCambioHoy");
+.WithName("ObtenerTipoCambioHoy")
+.WithSummary("Tipo de cambio del día")
+.WithDescription(
+    "Devuelve el tipo de cambio oficial (soles por dólar). Si ya está guardado, no consulta fuentes externas. " +
+    "Fuente principal: SUNAT. Si SUNAT no responde, usa BCRP, que publica con retraso: " +
+    "en ese caso 'fecha' es el último día publicado y 'fuente' es \"BCRP\".")
+.ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
-app.MapGet("/tipo-cambio/historico", async (DateOnly desde, DateOnly hasta, TipoCambioServicio servicio, CancellationToken ct) =>
+app.MapGet("/tipo-cambio/historico", async Task<Results<Ok<IReadOnlyList<TipoCambioDia>>, ValidationProblem>> (
+    [Description("Fecha inicial, incluida (yyyy-MM-dd).")] DateOnly desde,
+    [Description("Fecha final, incluida (yyyy-MM-dd).")] DateOnly hasta,
+    TipoCambioServicio servicio,
+    CancellationToken ct) =>
 {
     var error = TipoCambioServicio.ValidarRango(desde, hasta);
     if (error is not null)
-        return Results.ValidationProblem(new Dictionary<string, string[]> { ["rango"] = [error] });
+        return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["rango"] = [error] });
 
-    return Results.Ok(await servicio.ObtenerHistoricoAsync(desde, hasta, ct));
+    return TypedResults.Ok(await servicio.ObtenerHistoricoAsync(desde, hasta, ct));
 })
-.WithName("ObtenerTipoCambioHistorico");
+.WithName("ObtenerTipoCambioHistorico")
+.WithSummary("Histórico por rango de fechas")
+.WithDescription(
+    $"Devuelve los días guardados entre 'desde' y 'hasta', ordenados por fecha. " +
+    $"Solo incluye días que la API ya consultó. Rango máximo: {TipoCambioServicio.MaxDiasHistorico} días.");
 
 app.Run();
