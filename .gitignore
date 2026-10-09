@@ -482,3 +482,8 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Base de datos SQLite local (se crea al ejecutar la API)
+*.db
+*.db-shm
+*.db-wal

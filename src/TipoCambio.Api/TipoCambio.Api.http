@@ -4,3 +4,8 @@ GET {{TipoCambio.Api_HostAddress}}/tipo-cambio/hoy
 Accept: application/json
 
 ###
+
+GET {{TipoCambio.Api_HostAddress}}/tipo-cambio/historico?desde=2026-10-01&hasta=2026-10-31
+Accept: application/json
+
+###

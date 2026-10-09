@@ -1,6 +1,8 @@
+using Microsoft.EntityFrameworkCore;
 using TipoCambio.Core;
 using TipoCambio.Core.Bcrp;
 using TipoCambio.Core.Sunat;
+using TipoCambio.Datos;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,7 +32,18 @@ builder.Services.AddTransient<ITipoCambioProveedor>(sp => new ProveedorConRespal
     sp.GetRequiredService<BcrpProveedor>(),
     sp.GetRequiredService<ILogger<ProveedorConRespaldo>>()));
 
+builder.Services.AddDbContext<TipoCambioDbContext>(db =>
+    db.UseSqlite(builder.Configuration.GetConnectionString("TipoCambio") ?? "Data Source=tipocambio.db"));
+builder.Services.AddScoped<ITipoCambioRepositorio, TipoCambioRepositorio>();
+builder.Services.AddScoped<TipoCambioServicio>();
+
 var app = builder.Build();
+
+// Crea el archivo SQLite y aplica las migraciones pendientes al iniciar: quien clone el repo no instala nada.
+using (var scope = app.Services.CreateScope())
+{
+    await scope.ServiceProvider.GetRequiredService<TipoCambioDbContext>().Database.MigrateAsync();
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -39,11 +52,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapGet("/tipo-cambio/hoy", async (ITipoCambioProveedor proveedor, ILogger<Program> logger, CancellationToken ct) =>
+app.MapGet("/tipo-cambio/hoy", async (TipoCambioServicio servicio, ILogger<Program> logger, CancellationToken ct) =>
 {
     try
     {
-        return Results.Ok(await proveedor.ObtenerHoyAsync(ct));
+        return Results.Ok(await servicio.ObtenerHoyAsync(ct));
     }
     catch (ProveedorNoDisponibleException ex)
     {
@@ -56,5 +69,15 @@ app.MapGet("/tipo-cambio/hoy", async (ITipoCambioProveedor proveedor, ILogger<Pr
     }
 })
 .WithName("ObtenerTipoCambioHoy");
+
+app.MapGet("/tipo-cambio/historico", async (DateOnly desde, DateOnly hasta, TipoCambioServicio servicio, CancellationToken ct) =>
+{
+    var error = TipoCambioServicio.ValidarRango(desde, hasta);
+    if (error is not null)
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["rango"] = [error] });
+
+    return Results.Ok(await servicio.ObtenerHistoricoAsync(desde, hasta, ct));
+})
+.WithName("ObtenerTipoCambioHistorico");
 
 app.Run();
