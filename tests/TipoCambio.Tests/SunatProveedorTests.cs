@@ -1,6 +1,8 @@
 using System.Net;
 using TipoCambio.Core;
 using TipoCambio.Core.Sunat;
+using TipoCambio.Tests.Fakes;
+using static TipoCambio.Tests.Fakes.HandlerFalso;
 
 namespace TipoCambio.Tests;
 
@@ -53,17 +55,4 @@ public class SunatProveedorTests
 
     private static SunatProveedor CrearProveedor(Func<HttpRequestMessage, HttpResponseMessage> responder) =>
         new(new HttpClient(new HandlerFalso(responder)) { BaseAddress = new Uri("https://sunat.test/") });
-
-    private static HttpResponseMessage Respuesta(HttpStatusCode status, string cuerpo) =>
-        new(status) { Content = new StringContent(cuerpo) };
-
-    /// <summary>Simula la red: devuelve lo que indique la prueba, sin salir a internet.</summary>
-    private sealed class HandlerFalso(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(responder(request));
-        }
-    }
 }
