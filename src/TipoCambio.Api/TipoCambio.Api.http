@@ -1,0 +1,6 @@
+@TipoCambio.Api_HostAddress = http://localhost:5080
+
+GET {{TipoCambio.Api_HostAddress}}/tipo-cambio/hoy
+Accept: application/json
+
+###
