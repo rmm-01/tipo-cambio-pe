@@ -13,12 +13,9 @@ public sealed class BcrpProveedor(HttpClient http, TimeProvider reloj) : ITipoCa
     // Cubre fines de semana largos y feriados sin publicación.
     public const int DiasHaciaAtras = 10;
 
-    // Perú no tiene horario de verano: UTC-5 todo el año.
-    private static readonly TimeSpan HoraPeru = TimeSpan.FromHours(-5);
-
     public async Task<TipoCambioDia> ObtenerHoyAsync(CancellationToken cancellationToken = default)
     {
-        var hasta = DateOnly.FromDateTime(reloj.GetUtcNow().ToOffset(HoraPeru).DateTime);
+        var hasta = FechaPeru.Hoy(reloj);
         var desde = hasta.AddDays(-DiasHaciaAtras);
         var ruta = $"estadisticas/series/api/{Series}/json/{desde:yyyy-MM-dd}/{hasta:yyyy-MM-dd}";
 
